@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>5 秒即時指令 + 會後總結</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    button { margin-right: .5rem; }
+    pre { background: #f4f4f4; padding: .5rem; }
+  </style>
+</head>
+<body>
+  <h2>🎙️ 會議錄音 & 即時指令系統</h2>
+  <button id="startBtn">開始會議</button>
+  <button id="stopBtn" disabled>結束會議</button>
+
+  <h3>🔊 即時轉錄：</h3>
+  <pre id="transcript">(尚未開始)</pre>
+
+  <h3>⚙️ 即時指令：</h3>
+  <pre id="actions">(無)</pre>
+
+  <h3>📝 最終摘要：</h3>
+  <pre id="summary">(尚未結束會議)</pre>
+
+  <!-- Recorder.js (WAV encoder) -->
+  <script src="https://cdn.jsdelivr.net/gh/mattdiamond/Recorderjs@08e7abd9/dist/recorder.js"></script>
+
+<script>
+const CHUNK_MS = 5000;  // 每 5 秒輸出一次
+let audioContext, input, recorder, recordInterval, meetingId;
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn  = document.getElementById("stopBtn");
+const transcriptElem = document.getElementById("transcript");
+const actionsElem    = document.getElementById("actions");
+const summaryElem    = document.getElementById("summary");
+
+startBtn.onclick = async () => {
+  // 1️⃣ 建會議，拿 meeting_id
+  const res = await fetch("/begin_meeting", { method: "POST" });
+  meetingId = (await res.json()).meeting_id;
+
+  // 2️⃣ 建立 AudioContext + Recorder.js
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  input    = audioContext.createMediaStreamSource(stream);
+  recorder = new Recorder(input, { numChannels: 1 });
+  recorder.record();
+
+  // 3️⃣ 每 CHUNK_MS 停錄、送檔，再重啟錄音
+  recordInterval = setInterval(async () => {
+    recorder.stop();
+    recorder.exportWAV(async blob => {
+      const form = new FormData();
+      form.append("file", blob, "chunk.wav");
+      form.append("meeting_id", meetingId);
+
+      const r = await fetch("/chunk", { method: "POST", body: form });
+      if (r.ok) {
+        const { transcript, actions } = await r.json();
+        transcriptElem.textContent = transcript;
+        actionsElem.textContent = actions.length ? actions.join(", ") : "(無)";
+      } else {
+        console.error("chunk 上傳失敗：", await r.text());
+      }
+    });
+    recorder.clear();
+    recorder.record();
+  }, CHUNK_MS);
+
+  startBtn.disabled = true;
+  stopBtn.disabled  = false;
+};
+
+stopBtn.onclick = async () => {
+  // 停止週期任務
+  clearInterval(recordInterval);
+  // 最後一段
+  recorder.stop();
+  recorder.exportWAV(async blob => {
+    const form = new FormData();
+    form.append("file", blob, "chunk.wav");
+    form.append("meeting_id", meetingId);
+    await fetch("/chunk", { method: "POST", body: form });
+  });
+
+  // 4️⃣ 叫後端做最終摘要
+  const r = await fetch(`/end_meeting?meeting_id=${meetingId}`);
+  const { summary } = await r.json();
+  summaryElem.textContent = summary;
+
+  startBtn.disabled = false;
+  stopBtn.disabled  = true;
+};
+</script>
+</body>
+</html>
