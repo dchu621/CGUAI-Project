@@ -1,1 +1,26 @@
-venv/ 
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.log
+
+# Virtual Environments
+venv/
+env/
+
+# IDE & Editor
+.vscode/
+.idea/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Secrets
+credentials.json
+.env
