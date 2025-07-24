@@ -1,26 +1,8 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-*.log
-
-# Virtual Environments
+# .gitignore
 venv/
-env/
-
-# IDE & Editor
+__pycache__/
+*.pyc
+*.log
 .vscode/
-.idea/
-
-# System Files
-.DS_Store
-Thumbs.db
-
-# Build
-build/
-dist/
-*.egg-info/
-
-# Secrets
 credentials.json
 .env
